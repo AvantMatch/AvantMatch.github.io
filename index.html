@@ -249,7 +249,12 @@ footer a { color: var(--discret); }
 .legende { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--faible); }
 .legende span { display: inline-flex; align-items: center; gap: 5px; }
 .legende i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+/* Changement d'onglet en glissant le doigt : la nouvelle page arrive du bon côté */
+@keyframes depuis-droite { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@keyframes depuis-gauche { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+#vue.vers-suivant { animation: depuis-droite .22s ease-out; }
+#vue.vers-precedent { animation: depuis-gauche .22s ease-out; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } #vue.vers-suivant, #vue.vers-precedent { animation: none; } }
 </style>
 </head>
 <body>
@@ -760,15 +765,54 @@ function afficher() {
   else vue.innerHTML = vueMatchs();
   remplirPubs();
 }
-function aller(cible) { location.hash = cible; if (!cible) afficher(); window.scrollTo(0, 0); }
+function aller(cible, sens) {
+  const vue = document.getElementById("vue");
+  vue.classList.remove("vers-suivant", "vers-precedent");
+  if (sens) { void vue.offsetWidth; vue.classList.add(sens > 0 ? "vers-suivant" : "vers-precedent"); }
+  location.hash = cible; if (!cible) afficher(); window.scrollTo(0, 0);
+}
+
+// ---------- CHANGER D'ONGLET EN GLISSANT LE DOIGT ----------
+// Glisser vers la gauche : onglet suivant. Vers la droite : onglet précédent.
+// Sur la page d'un match, glisser vers la droite ramène à la liste.
+const ORDRE_ONGLETS = ["nuit", "soir", "joueurs"];
+function ongletActuel() {
+  const h = location.hash.replace("#", "") || ongletParDefaut();
+  return h.startsWith("match-") ? "match" : ORDRE_ONGLETS.includes(h) ? h : "soir";
+}
+let depart = null;
+document.addEventListener("touchstart", (e) => {
+  const t = e.touches[0];
+  // On ignore : plusieurs doigts, les bords de l'écran (geste « retour » du téléphone),
+  // et les zones qui défilent déjà de côté (tableaux larges, onglets).
+  if (e.touches.length > 1 || t.clientX < 24 || t.clientX > window.innerWidth - 24 || e.target.closest(".defile, .onglets")) { depart = null; return; }
+  depart = { x: t.clientX, y: t.clientY, temps: Date.now() };
+}, { passive: true });
+document.addEventListener("touchend", (e) => {
+  if (!depart) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - depart.x, dy = t.clientY - depart.y;
+  const rapide = Date.now() - depart.temps < 600;
+  depart = null;
+  // un vrai geste de côté : assez long, plus horizontal que vertical, et pas trop lent
+  if (!rapide || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.8) return;
+  const actuel = ongletActuel();
+  if (actuel === "match") { if (dx > 0) aller("soir", -1); return; }
+  const i = ORDRE_ONGLETS.indexOf(actuel) + (dx < 0 ? 1 : -1);
+  if (i >= 0 && i < ORDRE_ONGLETS.length) aller(ORDRE_ONGLETS[i], dx < 0 ? 1 : -1);
+}, { passive: true });
 
 document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-aller]");
   if (b) { e.preventDefault(); aller(b.dataset.aller); }
 });
-document.getElementById("onglet-nuit").onclick = () => aller("nuit");
-document.getElementById("onglet-matchs").onclick = () => aller("soir");
-document.getElementById("onglet-joueurs").onclick = () => aller("joueurs");
+const allerOnglet = (cible) => {
+  const a = ORDRE_ONGLETS.indexOf(ongletActuel()), b = ORDRE_ONGLETS.indexOf(cible);
+  aller(cible, a >= 0 && b !== a ? Math.sign(b - a) : 0);
+};
+document.getElementById("onglet-nuit").onclick = () => allerOnglet("nuit");
+document.getElementById("onglet-matchs").onclick = () => allerOnglet("soir");
+document.getElementById("onglet-joueurs").onclick = () => allerOnglet("joueurs");
 window.addEventListener("hashchange", () => { afficher(); compterVisite(); });
 
 // ---------- CHARGEMENT DES DONNÉES ----------
