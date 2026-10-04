@@ -209,6 +209,21 @@ th.c, td.c { text-align: center; }
 .noms .nom { white-space: nowrap; color: var(--texte); }
 .blesse { color: var(--ko); font-size: 12px; font-weight: 600; margin-left: 3px; }
 
+/* ---------- Historique des rencontres ---------- */
+.resultats { list-style: none; margin: 0; padding: 0; display: grid; }
+.resultats li { display: grid; grid-template-columns: 52px 1fr auto auto; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--ligne); font-size: 14px; }
+.resultats li:first-child { border-top: 0; }
+.resultats .quand { color: var(--faible); font-size: 13px; }
+.resultats .score { font: 700 16px/1 var(--titre); letter-spacing: .04em; font-variant-numeric: tabular-nums; }
+.resultats .pre { color: var(--faible); font-size: 12px; }
+.res { display: inline-grid; place-items: center; min-width: 34px; height: 22px; padding: 0 6px; border-radius: 6px; font: 700 12px/1 var(--titre); letter-spacing: .04em; }
+.res.v { color: var(--ok); background: rgba(52, 211, 153, .12); }
+.res.d { color: var(--ko); background: rgba(255, 107, 107, .12); }
+.res.dp { color: var(--attention); background: rgba(251, 191, 36, .12); }
+.bilan-faf { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; text-align: center; }
+.bilan-faf .nb { font: 700 32px/1 var(--titre); }
+.bilan-faf .lib { color: var(--discret); font-size: 13px; }
+
 /* ---------- Récap de la nuit ---------- */
 .score-carte { gap: 12px; }
 .statut { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--faible); }
@@ -358,6 +373,7 @@ const ICONES = {
   repos: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/></svg>',
   absent: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 2v12M2 8h12"/></svg>',
   gardien: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M8 1.8l5 2v4c0 3.2-2.1 5.4-5 6.4-2.9-1-5-3.2-5-6.4v-4z"/></svg>',
+  faf: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5h9l-2.5-2.5M14 11H5l2.5 2.5"/></svg>',
   buts: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="8" cy="9.5" rx="6" ry="2.5"/><path d="M2 9.5v-2c0-1.4 2.7-2.5 6-2.5s6 1.1 6 2.5v2"/></svg>',
 };
 const point = (classe, icone, titre, texte) => `<li><span class="pastille ${classe}">${ICONES[icone]}</span><div><div class="titre-point">${titre}</div><p>${texte}</p></div></li>`;
@@ -480,6 +496,14 @@ function lEssentiel(m, v) {
     items.push(point(v.favori ? "ok" : "info", "forme", v.favori ? `Forme : avantage ${esc(surnom(v.favori))}` : "Forme : match équilibré", txt));
   }
 
+  // 1 bis. Face-à-face
+  const faf = bilanFaceAFace(m);
+  if (faf.liste.length) {
+    const meneur = faf.ext > faf.dom ? e : faf.dom > faf.ext ? d : null;
+    items.push(point("info", "faf", meneur ? `Face-à-face : avantage ${esc(surnom(meneur))}` : "Face-à-face : égalité",
+      `${esc(surnom(e))} ${faf.ext} ${faf.ext > 1 ? "victoires" : "victoire"}, ${esc(surnom(d))} ${faf.dom} sur les ${pluriel(faf.liste.length, "dernier match", "derniers matchs")} entre eux (saison dernière comprise).`));
+  }
+
   // 2. Repos
   const re = joursRepos(e.abbrev), rd = joursRepos(d.abbrev);
   const fatigues = [re === 0 ? e : null, rd === 0 ? d : null].filter(Boolean);
@@ -556,6 +580,61 @@ function sectionForme(m, v) {
         </tbody>
       </table></div>
       <div class="petit discret">V : victoire · D : défaite · prol. : défaite en prolongation ou aux tirs au but. En vert : la meilleure des deux équipes.</div>
+    </div>
+  </details>`;
+}
+
+// Le résultat d'un match vu par une équipe : V (victoire), D (défaite), Prol. (défaite en prolongation)
+const badgeRes = (victoire, prol) => victoire ? `<span class="res v">V</span>` : prol ? `<span class="res dp" title="Défaite en prolongation ou aux tirs au but">Prol.</span>` : `<span class="res d">D</span>`;
+
+function sectionDerniersMatchs(m) {
+  const colonne = (eq) => {
+    const h = D.equipes[eq.abbrev]?.historique || [];
+    const tete = `<div class="col-titre">${sigle(eq.abbrev)} ${esc(surnom(eq))}</div>`;
+    if (!h.length) return `<div>${tete}<p class="petit discret">Pas encore de match joué.</p></div>`;
+    return `<div>${tete}<ul class="resultats">${h.map((r) => `<li>
+      <span class="quand">${dateCourte(r.date)}</span>
+      <span>${r.domicile ? "contre" : "à"} <strong>${esc(r.adversaire)}</strong>${r.presaison ? ` <span class="pre">présaison</span>` : ""}</span>
+      <span class="score">${r.butsPour}-${r.butsContre}</span>
+      ${badgeRes(r.victoire, r.prolongation)}
+    </li>`).join("")}</ul></div>`;
+  };
+  return `<details class="carte section">
+    <summary><h2>Derniers matchs</h2><span class="resume">adversaires et scores</span></summary>
+    <div class="section-corps">
+      <div class="deux-col">${colonne(m.exterieur)}${colonne(m.domicile)}</div>
+      <div class="petit discret">Le score est donné du point de vue de l'équipe (ses buts d'abord). « contre » : à domicile, « à » : à l'extérieur.</div>
+    </div>
+  </details>`;
+}
+
+// Bilan des face-à-face entre les deux équipes du soir
+function bilanFaceAFace(m) {
+  const liste = m.faceAFace || [];
+  const gagne = (r, abbr) => (r.domicile === abbr ? r.scoreDom > r.scoreExt : r.scoreExt > r.scoreDom);
+  return { liste, ext: liste.filter((r) => gagne(r, m.exterieur.abbrev)).length, dom: liste.filter((r) => gagne(r, m.domicile.abbrev)).length };
+}
+
+function sectionFaceAFace(m) {
+  const b = bilanFaceAFace(m);
+  const corps = !m.faceAFace ? `<p class="petit discret">Face-à-face indisponibles pour le moment.</p>`
+    : !b.liste.length ? `<p class="petit discret">Les deux équipes ne se sont pas affrontées depuis la saison dernière.</p>`
+    : `<div class="bilan-faf">
+        <div><div class="nb">${b.ext}</div><div class="lib">${pluriel(b.ext, "victoire")} ${esc(surnom(m.exterieur))}</div></div>
+        <div class="petit discret">sur ${pluriel(b.liste.length, "match", "matchs")}</div>
+        <div><div class="nb">${b.dom}</div><div class="lib">${pluriel(b.dom, "victoire")} ${esc(surnom(m.domicile))}</div></div>
+      </div>
+      <ul class="resultats">${b.liste.map((r) => `<li>
+        <span class="quand">${dateCourte(r.date)}</span>
+        <span><strong>${esc(r.exterieur)}</strong> à ${esc(r.domicile)}${r.series ? ` <span class="pre">séries</span>` : ""}</span>
+        <span class="score">${r.scoreExt}-${r.scoreDom}</span>
+        <span class="res ${r.fin === "OT" || r.fin === "SO" ? "dp" : ""}" style="${r.fin === "OT" || r.fin === "SO" ? "" : "background:var(--carte-2);color:var(--discret)"}">${r.fin === "OT" ? "Prol." : r.fin === "SO" ? "T.a.b." : "Final"}</span>
+      </li>`).join("")}</ul>`;
+  return `<details class="carte section">
+    <summary><h2>Face-à-face</h2><span class="resume">${b.liste.length ? `${b.ext}-${b.dom}` : ""}</span></summary>
+    <div class="section-corps">
+      ${corps}
+      <div class="petit discret">Matchs officiels de cette saison et de la saison dernière. Score écrit « équipe qui se déplace - équipe qui reçoit ».</div>
     </div>
   </details>`;
 }
@@ -658,6 +737,8 @@ function vueMatch(id) {
   </section>
   ${lEssentiel(m, v)}
   ${sectionForme(m, v)}
+  ${sectionDerniersMatchs(m)}
+  ${sectionFaceAFace(m)}
   ${sectionBlesses(m)}
   ${sectionCompos(m)}
   ${sectionJoueurs(m)}
@@ -785,17 +866,18 @@ document.addEventListener("touchstart", (e) => {
   const t = e.touches[0];
   // On ignore : plusieurs doigts, les bords de l'écran (geste « retour » du téléphone),
   // et les zones qui défilent déjà de côté (tableaux larges, onglets).
-  if (e.touches.length > 1 || t.clientX < 24 || t.clientX > window.innerWidth - 24 || e.target.closest(".defile, .onglets")) { depart = null; return; }
+  if (e.touches.length > 1 || t.clientX < 16 || t.clientX > window.innerWidth - 16 || e.target.closest(".defile, .onglets")) { depart = null; return; }
   depart = { x: t.clientX, y: t.clientY, temps: Date.now() };
 }, { passive: true });
 document.addEventListener("touchend", (e) => {
   if (!depart) return;
   const t = e.changedTouches[0];
   const dx = t.clientX - depart.x, dy = t.clientY - depart.y;
-  const rapide = Date.now() - depart.temps < 600;
+  const rapide = Date.now() - depart.temps < 900;
   depart = null;
   // un vrai geste de côté : assez long, plus horizontal que vertical, et pas trop lent
-  if (!rapide || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.8) return;
+  // RÉGLAGE DE SENSIBILITÉ : 40 px de déplacement suffisent, à condition d'aller plus de côté que vers le bas
+  if (!rapide || Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
   const actuel = ongletActuel();
   if (actuel === "match") { if (dx > 0) aller("soir", -1); return; }
   const i = ORDRE_ONGLETS.indexOf(actuel) + (dx < 0 ? 1 : -1);

@@ -420,17 +420,50 @@ export async function construireClassement(fetcher, saison) {
   };
 }
 
+// ============================================================
+//  8) LES FACE-À-FACE (saison en cours + saison précédente)
+// ============================================================
+const NB_FACE_A_FACE = 5;
+
+export function extraireFaceAFace(calendrier, a, b) {
+  return (calendrier?.games || [])
+    .filter((g) => ["OFF", "FINAL"].includes(g.gameState) && [2, 3].includes(g.gameType))
+    .filter((g) => [g.homeTeam?.abbrev, g.awayTeam?.abbrev].sort().join() === [a, b].sort().join())
+    .map((g) => ({
+      date: g.gameDate,
+      saison: g.season,
+      series: g.gameType === 3,
+      domicile: g.homeTeam.abbrev,
+      exterieur: g.awayTeam.abbrev,
+      scoreDom: g.homeTeam.score,
+      scoreExt: g.awayTeam.score,
+      fin: g.gameOutcome?.lastPeriodType || "REG",
+    }));
+}
+
+export async function construireFaceAFace(fetcher, calActuel, dom, ext) {
+  if (!calActuel) return [];
+  let liste = extraireFaceAFace(calActuel, dom, ext);
+  if (liste.length < NB_FACE_A_FACE && calActuel.previousSeason) {
+    const calPrec = await lire(`/club-schedule-season/${dom}/${calActuel.previousSeason}`, fetcher);
+    liste = liste.concat(extraireFaceAFace(calPrec, dom, ext));
+  }
+  return liste.sort((x, y) => (x.date < y.date ? 1 : -1)).slice(0, NB_FACE_A_FACE);
+}
+
 export async function construireDonnees(fetcher = fetch) {
   const calendrier = await lire("/schedule/now", fetcher);
   const soir = extraireMatchsDuSoir(calendrier);
 
   const abbrevs = [...new Set(soir.matchs.flatMap((m) => [m.domicile.abbrev, m.exterieur.abbrev]))];
   const equipes = {};
+  const calendriers = {}; // gardés pour retrouver les face-à-face
 
   for (const abbrev of abbrevs) {
     let cal;
     try {
       cal = await lire(`/club-schedule-season/${abbrev}/now`, fetcher);
+      calendriers[abbrev] = cal;
     } catch (e) {
       // Une équipe en échec ne doit pas bloquer tout le site
       console.log(`::warning::Calendrier indisponible pour ${abbrev} : ${e.message}`);
@@ -473,6 +506,15 @@ export async function construireDonnees(fetcher = fetch) {
       compo: construireCompo(feuilles, matchsLus, abbrev),
     };
     console.log(`✓ ${abbrev} : ${officiels.length} matchs officiels + ${presaison.length} de présaison, effectif ${effectif ? effectif.size + " joueurs" : "non filtré"}`);
+  }
+
+  // Les face-à-face : les derniers matchs officiels entre les deux équipes de chaque affiche
+  for (const m of soir.matchs) {
+    try {
+      m.faceAFace = await construireFaceAFace(fetcher, calendriers[m.domicile.abbrev], m.domicile.abbrev, m.exterieur.abbrev);
+    } catch (e) {
+      console.log(`::warning::Face-à-face indisponible pour ${m.exterieur.abbrev}-${m.domicile.abbrev} : ${e.message}`);
+    }
   }
 
   // Le récap ne doit jamais empêcher le reste du site de se mettre à jour
