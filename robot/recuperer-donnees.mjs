@@ -64,7 +64,8 @@ const equipeCourte = (t) => ({ abbrev: t.abbrev, nom: nomEquipe(t), surnom: t.co
 export function extraireMatchsDuSoir(calendrier) {
   for (const jour of calendrier.gameWeek || []) {
     const aVenir = (jour.games || []).filter(
-      (g) => ["FUT", "PRE"].includes(g.gameState) && [2, 3].includes(g.gameType)
+      // On garde aussi les matchs en cours, pour que la liste du soir reste complète
+      (g) => ["FUT", "PRE", "LIVE", "CRIT"].includes(g.gameState) && [2, 3].includes(g.gameType)
     );
     if (aVenir.length) {
       return {

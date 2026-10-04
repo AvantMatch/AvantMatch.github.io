@@ -1,7 +1,7 @@
 # ============================================================
 #  LE PLANNING DU ROBOT
 # ------------------------------------------------------------
-#  Ce fichier dit à GitHub : « trois fois par jour, lance le
+#  Ce fichier dit à GitHub : « toutes les heures, lance le
 #  robot, puis mets le site à jour avec les nouvelles données ».
 #
 #  Il se déclenche aussi quand tu modifies index.html
@@ -13,17 +13,11 @@ name: Mise à jour du site
 
 on:
   schedule:
-    # GitHub compte en heure UTC et ne connaît pas l'heure d'été.
-    # On programme donc les horaires d'été ET d'hiver, et la première
-    # étape ne laisse passer que ceux qui tombent juste à Paris.
-    # Résultat : 7h07, 8h47 et 16h47 à Paris, toute l'année.
-    #   Été (UTC+2)       Hiver (UTC+1)
-    - cron: "7 5 * * *"   # 7h07 été  → récap de la nuit
-    - cron: "7 6 * * *"   # 7h07 hiver
-    - cron: "47 6 * * *"  # 8h47 été  → rattrape les matchs finis tard
-    - cron: "47 7 * * *"  # 8h47 hiver
-    - cron: "47 14 * * *" # 16h47 été → avant les matchs du soir
-    - cron: "47 15 * * *" # 16h47 hiver
+    # GitHub ne garantit pas ses horaires programmés : quand ses serveurs sont
+    # chargés, il saute des passages sans prévenir. On passe donc toutes les heures
+    # (à la 23e minute, loin des heures pleines très encombrées), de 6h23 à 0h23
+    # à Paris : même si GitHub en oublie quelques-uns, le site reste à jour.
+    - cron: "23 4-22 * * *"
   push:
     branches: [main]
   workflow_dispatch: {}
@@ -44,21 +38,9 @@ jobs:
       name: github-pages
       url: ${{ steps.publication.outputs.page_url }}
     steps:
-      - name: Vérifier l'horaire (heure d'été ou d'hiver à Paris)
+      - name: Démarrer
         id: horaire
-        run: |
-          DECALAGE=$(TZ=Europe/Paris date +%z)
-          case "${{ github.event.schedule }}" in
-            "7 5 * * *"|"47 6 * * *"|"47 14 * * *") SAISON=ete ;;
-            "7 6 * * *"|"47 7 * * *"|"47 15 * * *") SAISON=hiver ;;
-            *) SAISON=toujours ;;   # lancement manuel ou modification du site
-          esac
-          if { [ "$SAISON" = ete ] && [ "$DECALAGE" != "+0200" ]; } || { [ "$SAISON" = hiver ] && [ "$DECALAGE" != "+0100" ]; }; then
-            echo "Horaire de l'autre saison : on ne fait rien cette fois."
-            echo "lancer=non" >> "$GITHUB_OUTPUT"
-          else
-            echo "lancer=oui" >> "$GITHUB_OUTPUT"
-          fi
+        run: echo "lancer=oui" >> "$GITHUB_OUTPUT"
 
       - name: Récupérer les fichiers du projet
         if: steps.horaire.outputs.lancer == 'oui'

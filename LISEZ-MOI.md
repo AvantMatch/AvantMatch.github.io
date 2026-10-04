@@ -10,7 +10,7 @@ Ton outil d'analyse des matchs NHL du soir, pour parieurs.
 | `robot/recuperer-donnees.mjs` | Le robot qui va chercher les données NHL | Rarement : seulement si la NHL change ses données |
 | `confidentialite.html`, `mentions-legales.html` | Les pages légales (liées en bas du site) | Si tes pratiques changent |
 | `polices/` | Les polices du site, hébergées ici plutôt que chez Google | Non |
-| `.github/workflows/mise-a-jour.yml` | Le planning : lance le robot à 7h07, 8h47 et 16h47 (heure de Paris, été comme hiver) et met le site à jour | Presque jamais |
+| `.github/workflows/mise-a-jour.yml` | Le planning : lance le robot toutes les heures (de 6h à minuit environ, heure de Paris) et met le site à jour | Presque jamais |
 
 ## Adresse du site
 
@@ -42,7 +42,7 @@ Ouvre `index.html` sur GitHub, clique sur le crayon ✏️, modifie, puis « Com
 - Pas de gardiens titulaires probables, pas de cotes, pas de vidéos des buts.
 - Les blessés viennent de la liste publique d'ESPN (source non officielle, comme celle de la NHL).
 - « Repos » compte les jours depuis le dernier match joué ; « Back-to-back » = l'équipe a joué la veille.
-- Le récap de la nuit montre les matchs de la veille (heure de New York) ; GitHub peut lancer le robot avec 10 à 30 minutes de retard.
+- Le récap de la nuit montre les matchs de la veille (heure de New York). GitHub saute parfois des passages programmés ; avec un passage par heure, le site reste à jour malgré tout.
 - Saison en cours uniquement : tant qu'une équipe a joué moins de 3 matchs, l'indicateur affiche « Trop tôt pour juger ».
 - Source NHL non officielle : elle peut changer sans prévenir.
 
