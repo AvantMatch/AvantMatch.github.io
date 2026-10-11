@@ -101,6 +101,7 @@ a { color: var(--accent); }
   padding: 9px 12px; border-radius: 999px; transition: background .15s, color .15s;
 }
 .onglets button:hover { color: var(--texte); }
+@media (max-width: 480px) { .onglets .long { display: none; } .onglets button { padding-inline: 10px; } }
 .onglets button[aria-selected="true"] { background: var(--accent); color: #04121d; }
 
 /* ---------- Titres de section ---------- */
@@ -224,6 +225,28 @@ th.c, td.c { text-align: center; }
 .bilan-faf .nb { font: 700 32px/1 var(--titre); }
 .bilan-faf .lib { color: var(--discret); font-size: 13px; }
 
+/* ---------- Pronos ---------- */
+.bilan-pronos { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center; }
+.bilan-pronos .taux { font: 700 46px/1 var(--titre); color: var(--accent); }
+.bilan-pronos .taux small { font-size: 22px; }
+.bilan-types { display: grid; gap: 6px; font-size: 14px; }
+.bilan-types div { display: flex; justify-content: space-between; gap: 10px; border-top: 1px solid var(--ligne); padding-top: 6px; }
+.bilan-types div:first-child { border-top: 0; padding-top: 0; }
+.prono-match-tete { display: flex; justify-content: space-between; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
+.prono-match-tete .affiche-mini { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.prono { display: grid; gap: 6px; padding-top: 12px; border-top: 1px solid var(--ligne); }
+.prono-ligne { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.prono-type { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--faible); }
+.prono-texte { font: 700 20px/1.15 var(--titre); letter-spacing: .02em; }
+.prono-detail { color: var(--faible); font-size: 12px; }
+.raisons { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 13px; color: var(--discret); }
+.raisons li::before { content: "✓ "; color: var(--ok); }
+.raisons li.contre::before { content: "! "; color: var(--attention); font-weight: 700; }
+.verifies li { grid-template-columns: 1fr auto auto; }
+.ok-ko { font: 700 13px/1 var(--titre); padding: 4px 8px; border-radius: 6px; }
+.ok-ko.gagne { color: var(--ok); background: rgba(52, 211, 153, .12); }
+.ok-ko.perdu { color: var(--ko); background: rgba(255, 107, 107, .12); }
+
 /* ---------- Récap de la nuit ---------- */
 .score-carte { gap: 12px; }
 .statut { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--faible); }
@@ -285,7 +308,8 @@ footer a { color: var(--discret); }
     <nav class="onglets" role="tablist" aria-label="Sections">
       <button id="onglet-nuit" role="tab" aria-selected="false">Cette nuit</button>
       <button id="onglet-matchs" role="tab" aria-selected="true">Matchs du soir</button>
-      <button id="onglet-joueurs" role="tab" aria-selected="false">Classement saisonnier</button>
+      <button id="onglet-pronos" role="tab" aria-selected="false">Pronos</button>
+      <button id="onglet-joueurs" role="tab" aria-selected="false">Classement<span class="long"> saisonnier</span></button>
     </nav>
   </div>
 </header>
@@ -774,6 +798,61 @@ function vueJoueurs() {
   ${emplacementPub()}`;
 }
 
+// ---------- VUE : PRONOS ----------
+const TYPE_PRONO = { vainqueur: "Vainqueur", buts: "Nombre de buts", joueur: "Joueur à suivre" };
+const tauxTxt = (c) => (c?.total ? `${Math.round((c.gagnes / c.total) * 100)} %` : "—");
+
+function vuePronos() {
+  const P = D.pronos;
+  const tete = `<div class="titre-vue"><h1>Pronos du soir</h1><p>Calculés automatiquement à partir des analyses du site : forme, face-à-face, fatigue, absents, domicile.</p></div>`;
+  const avertissement = `<div class="avertissement"><strong>Interdit aux moins de 18 ans.</strong> Ces pronos sont des tendances statistiques, pas des certitudes : même un bon taux de réussite implique des pertes. Ne mise que ce que tu peux te permettre de perdre. Besoin d'aide : 09 74 75 13 13 (appel non surtaxé).</div>`;
+  if (!P) return tete + avertissement + `<div class="vide">Les pronos apparaîtront au prochain passage du robot.</div>`;
+
+  // Bilan
+  const cumul = P.carnet?.cumul || {};
+  const tout = Object.values(cumul).reduce((a, c) => ({ gagnes: a.gagnes + c.gagnes, total: a.total + c.total }), { gagnes: 0, total: 0 });
+  const bilan = `<section class="carte">
+    <h2 style="font-size:20px;text-transform:uppercase;letter-spacing:.04em">Bilan des pronos</h2>
+    ${tout.total ? `<div class="bilan-pronos">
+        <div><div class="taux">${tauxTxt(tout).replace(" %", "<small> %</small>")}</div><div class="petit discret">${tout.gagnes} réussis sur ${tout.total}</div></div>
+        <div class="bilan-types">${["vainqueur", "buts", "joueur"].filter((t) => cumul[t]?.total).map((t) => `<div><span class="discret">${TYPE_PRONO[t]}</span><span><strong>${tauxTxt(cumul[t])}</strong> <span class="discret petit">(${cumul[t].gagnes}/${cumul[t].total})</span></span></div>`).join("")}</div>
+      </div>`
+      : `<p class="petit discret" style="margin:0">Le bilan s'affichera dès que les premiers pronos auront été vérifiés, le lendemain des matchs. Chaque prono est enregistré avant le coup d'envoi : impossible de le modifier après coup.</p>`}
+  </section>`;
+
+  // Pronos du soir
+  const cartes = D.matchs.map((m) => {
+    const liste = P.parMatch?.[m.id] || [];
+    const enCours = m.etat && !["FUT", "PRE"].includes(m.etat);
+    return `<section class="carte">
+      <a class="prono-match-tete" href="#match-${m.id}">
+        <span class="affiche-mini">${sigle(m.exterieur.abbrev)}<span class="discret">@</span>${sigle(m.domicile.abbrev)}</span>
+        <span class="heure chiffres">${heureParis(m.debutUTC)}${enCours ? ` <span class="etiquette alerte">en cours</span>` : ""}</span>
+      </a>
+      ${liste.length ? liste.map((p) => `<div class="prono">
+        <div class="prono-ligne"><span class="prono-type">${TYPE_PRONO[p.type]}</span><span class="etiquette ${p.confiance === "élevée" ? "info" : ""}">confiance ${esc(p.confiance)}</span></div>
+        <div class="prono-texte">${esc(p.texte)}</div>
+        <div class="prono-detail">${esc(p.detail)}</div>
+        <ul class="raisons">${p.raisons.map((r) => `<li>${esc(r)}</li>`).join("")}${(p.contre || []).map((r) => `<li class="contre">À surveiller : ${esc(r)}</li>`).join("")}</ul>
+      </div>`).join("") : `<p class="petit discret" style="margin:0">Pas de prono sur ce match : les indicateurs ne penchent pas assez d'un côté.</p>`}
+    </section>`;
+  });
+
+  // Derniers pronos vérifiés
+  const verifies = (P.carnet?.entrees || []).filter((e) => e.resultat).sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 15);
+  const historique = verifies.length ? `<details class="carte section" open>
+    <summary><h2>Derniers pronos vérifiés</h2><span class="resume">${verifies.length}</span></summary>
+    <div class="section-corps"><ul class="resultats verifies">${verifies.map((e) => `<li>
+      <span><span class="discret petit">${dateCourte(e.date)} · ${esc(e.affiche)}</span><br><strong>${esc(e.texte)}</strong></span>
+      <span class="score">${esc(e.score || "")}</span>
+      <span class="ok-ko ${e.resultat === "gagné" ? "gagne" : "perdu"}">${e.resultat === "gagné" ? "✓ gagné" : "✗ perdu"}</span>
+    </li>`).join("")}</ul></div>
+  </details>` : "";
+
+  return tete + avertissement + bilan + (D.matchs.length ? `<div class="liste">${avecPub(cartes)}</div>` : `<div class="vide">Pas de match ce soir.</div>`) + historique
+    + `<div class="petit discret">Les règles de calcul sont fixes : mêmes données, même prono. Vainqueur et nombre de buts incluent la prolongation et les tirs au but.</div>`;
+}
+
 // ---------- VUE : CETTE NUIT ----------
 const NOM_PERIODE = { 1: "1re période", 2: "2e période", 3: "3e période", OT: "Prolongation", SO: "Tirs au but" };
 const SITUATION = { AN: "supériorité numérique", IN: "infériorité numérique", FV: "filet vide" };
@@ -838,11 +917,13 @@ function afficher() {
   let h = location.hash.replace("#", "");
   if (!h) h = ongletParDefaut();
   const vue = document.getElementById("vue");
-  const onglet = h === "nuit" ? "nuit" : h === "joueurs" ? "joueurs" : "matchs";
-  for (const o of ["nuit", "matchs", "joueurs"]) document.getElementById("onglet-" + o).setAttribute("aria-selected", String(o === onglet));
+  const onglet = h === "nuit" ? "nuit" : h === "joueurs" ? "joueurs" : h === "pronos" ? "pronos" : "matchs";
+  for (const o of ["nuit", "matchs", "pronos", "joueurs"]) document.getElementById("onglet-" + o).setAttribute("aria-selected", String(o === onglet));
+  document.getElementById("onglet-" + onglet).scrollIntoView({ block: "nearest", inline: "nearest" });
   if (h.startsWith("match-")) vue.innerHTML = vueMatch(h.slice(6));
   else if (h === "joueurs") vue.innerHTML = vueJoueurs();
   else if (h === "nuit") vue.innerHTML = vueNuit();
+  else if (h === "pronos") vue.innerHTML = vuePronos();
   else vue.innerHTML = vueMatchs();
   remplirPubs();
 }
@@ -856,7 +937,7 @@ function aller(cible, sens) {
 // ---------- CHANGER D'ONGLET EN GLISSANT LE DOIGT ----------
 // Glisser vers la gauche : onglet suivant. Vers la droite : onglet précédent.
 // Sur la page d'un match, glisser vers la droite ramène à la liste.
-const ORDRE_ONGLETS = ["nuit", "soir", "joueurs"];
+const ORDRE_ONGLETS = ["nuit", "soir", "pronos", "joueurs"];
 function ongletActuel() {
   const h = location.hash.replace("#", "") || ongletParDefaut();
   return h.startsWith("match-") ? "match" : ORDRE_ONGLETS.includes(h) ? h : "soir";
@@ -894,6 +975,7 @@ const allerOnglet = (cible) => {
 };
 document.getElementById("onglet-nuit").onclick = () => allerOnglet("nuit");
 document.getElementById("onglet-matchs").onclick = () => allerOnglet("soir");
+document.getElementById("onglet-pronos").onclick = () => allerOnglet("pronos");
 document.getElementById("onglet-joueurs").onclick = () => allerOnglet("joueurs");
 window.addEventListener("hashchange", () => { afficher(); compterVisite(); });
 

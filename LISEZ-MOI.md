@@ -40,6 +40,7 @@ Ouvre `index.html` sur GitHub, clique sur le crayon ✏️, modifie, puis « Com
 
 - En début de saison, la forme est complétée par les matchs de présaison de l'année en cours (signalés en pointillés). Seuls les joueurs de l'effectif actuel sont affichés.
 - Pas de gardiens titulaires probables, pas de cotes, pas de vidéos des buts.
+- Les pronos (onglet « Pronos ») sont calculés par des règles fixes dans `robot/pronostics.mjs` (réglages en haut du fichier). Chaque prono est figé au coup d'envoi puis vérifié : le bilan affiché est le vrai taux de réussite.
 - Les blessés viennent de la liste publique d'ESPN (source non officielle, comme celle de la NHL).
 - « Repos » compte les jours depuis le dernier match joué ; « Back-to-back » = l'équipe a joué la veille.
 - Le récap de la nuit montre les matchs de la veille (heure de New York). GitHub saute parfois des passages programmés ; avec un passage par heure, le site reste à jour malgré tout.

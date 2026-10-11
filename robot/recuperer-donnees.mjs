@@ -13,6 +13,7 @@
 // ============================================================
 
 import { writeFile } from "node:fs/promises";
+import { pronostiquerMatch, mettreAJourCarnet } from "./pronostics.mjs";
 
 // ---------- RÉGLAGES ----------
 const NB_MATCHS_FORME = 5;      // matchs utilisés pour la forme (équipes + joueurs)
@@ -72,6 +73,7 @@ export function extraireMatchsDuSoir(calendrier) {
         date: jour.date,
         matchs: aVenir.map((g) => ({
           id: g.id,
+          etat: g.gameState, // FUT/PRE = pas commencé ; LIVE/CRIT = en cours
           debutUTC: g.startTimeUTC,
           domicile: equipeCourte(g.homeTeam),
           exterieur: equipeCourte(g.awayTeam),
@@ -451,6 +453,53 @@ export async function construireFaceAFace(fetcher, calActuel, dom, ext) {
   return liste.sort((x, y) => (x.date < y.date ? 1 : -1)).slice(0, NB_FACE_A_FACE);
 }
 
+// ============================================================
+//  9) LES PRONOSTICS ET LEUR CARNET
+// ============================================================
+// Le carnet des pronos (passés et en cours) est relu sur le site publié,
+// mis à jour, puis republié : rien n'est perdu d'un passage à l'autre.
+const ADRESSE_SITE = "https://avantmatch.github.io/";
+
+// Les matchs terminés d'une journée, avec scores et buteurs (pour vérifier les pronos)
+async function partiesDuJour(fetcher, date) {
+  const jour = await lire(`/score/${date}`, fetcher);
+  return (jour.games || []).filter((g) => ["OFF", "FINAL"].includes(g.gameState)).map((g) => ({
+    id: g.id,
+    domicile: { abbrev: g.homeTeam.abbrev, score: g.homeTeam.score },
+    exterieur: { abbrev: g.awayTeam.abbrev, score: g.awayTeam.score },
+    buts: (g.goals || []).map((b) => lireBut(b, g.homeTeam.abbrev, g.awayTeam.abbrev)),
+  }));
+}
+
+async function construirePronos(fetcher, donnees) {
+  // 1. Les pronos du soir
+  const parMatch = {};
+  for (const m of donnees.matchs) parMatch[m.id] = pronostiquerMatch(m, donnees);
+
+  // 2. Le carnet publié au passage précédent
+  let ancien = null;
+  try {
+    const publie = await lire(`${ADRESSE_SITE}data.json?t=${Date.now()}`, fetcher);
+    ancien = publie?.pronos?.carnet || null;
+  } catch (e) {
+    // Première publication : pas encore de carnet. Toute autre erreur : on arrête
+    // tout plutôt que de publier un carnet vide qui effacerait l'historique.
+    if (!/Erreur 404/.test(e.message)) throw new Error(`Carnet des pronos illisible, mise à jour annulée : ${e.message}`);
+  }
+
+  // 3. Les résultats des matchs déjà joués (récap de la nuit + journées encore en attente)
+  const parties = new Map();
+  for (const m of donnees.recap?.matchs || []) if (m.etat === "termine") parties.set(m.id, m);
+  const enAttente = new Set((ancien?.entrees || []).filter((e) => e.resultat == null && !parties.has(e.match) && e.date < donnees.dateDesMatchs).map((e) => e.date));
+  for (const date of enAttente) {
+    try { for (const p of await partiesDuJour(fetcher, date)) parties.set(p.id, p); }
+    catch (e) { console.log(`::warning::Résultats du ${date} indisponibles : ${e.message}`); }
+  }
+
+  const carnet = mettreAJourCarnet(ancien, donnees, parMatch, parties);
+  return { parMatch, carnet };
+}
+
 export async function construireDonnees(fetcher = fetch) {
   const calendrier = await lire("/schedule/now", fetcher);
   const soir = extraireMatchsDuSoir(calendrier);
@@ -548,7 +597,7 @@ export async function construireDonnees(fetcher = fetch) {
     console.log(`::warning::Classement saisonnier indisponible : ${e.message}`);
   }
 
-  return {
+  const donnees = {
     misAJour: new Date().toISOString(),
     recap,
     blesses,
@@ -559,6 +608,12 @@ export async function construireDonnees(fetcher = fetch) {
     matchs: soir.matchs,
     equipes,
   };
+
+  // Les pronos passent en dernier : ils utilisent toutes les données ci-dessus
+  donnees.pronos = await construirePronos(fetcher, donnees);
+  const c = donnees.pronos.carnet.cumul;
+  console.log(`✓ Pronos : ${Object.values(donnees.pronos.parMatch).flat().length} ce soir, bilan ${Object.entries(c).map(([t, x]) => `${t} ${x.gagnes}/${x.total}`).join(", ") || "vide"}`);
+  return donnees;
 }
 
 // Lancement direct (par GitHub) : on construit et on écrit le fichier
