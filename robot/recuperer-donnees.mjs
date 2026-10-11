@@ -612,7 +612,7 @@ export async function construireDonnees(fetcher = fetch) {
   // Les pronos passent en dernier : ils utilisent toutes les données ci-dessus
   donnees.pronos = await construirePronos(fetcher, donnees);
   const c = donnees.pronos.carnet.cumul;
-  console.log(`✓ Pronos : ${Object.values(donnees.pronos.parMatch).flat().length} ce soir, bilan ${Object.entries(c).map(([t, x]) => `${t} ${x.gagnes}/${x.total}`).join(", ") || "vide"}`);
+  console.log(`::notice::Pronos : ${Object.values(donnees.pronos.parMatch).flat().length} ce soir, bilan ${Object.entries(c).map(([t, x]) => `${t} ${x.gagnes}/${x.total}`).join(", ") || "vide"}`);
   return donnees;
 }
 
